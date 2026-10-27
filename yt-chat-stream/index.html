@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat Overlay cho YouTube Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;800&family=Roboto:wght@400;700&family=Nunito:wght@500;800&family=Montserrat:wght@500;800&family=Oswald:wght@400;600&family=Baloo+2:wght@500;800&display=swap">
+<style>
+:root{--ink:#141a24;--pan:#1c2432;--ln:#2b3548;--tx:#e6ebf4;--mu:#8b97ad;--ac:#ff5d73}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font:14px/1.45 'Be Vietnam Pro',system-ui,sans-serif;background:var(--ink);color:var(--tx)}
+body.ov{background:transparent!important;overflow:hidden}
+body.ov #app,body:not(.ov) #chat,body:not(.ov) #st{display:none}
+
+/* ---------- Editor ---------- */
+#app{display:grid;grid-template-columns:400px 1fr;height:100vh}
+#side{overflow:auto;background:var(--pan);border-right:1px solid var(--ln)}
+#side h1{font-size:18px;margin:0;padding:18px 18px 4px;font-weight:800}
+#side .sub{margin:0;padding:0 18px 14px;color:var(--mu);font-size:13px}
+details{border-top:1px solid var(--ln)}
+summary{cursor:pointer;padding:12px 18px;font-weight:600;list-style:none;display:flex;justify-content:space-between}
+summary::after{content:'+';color:var(--mu)}
+details[open] summary::after{content:'–'}
+.f{padding:0 18px 14px;display:grid;gap:10px}
+.r{display:grid;gap:4px}
+.r.c{grid-template-columns:1fr auto;align-items:center}
+.r label{color:var(--mu);font-size:12.5px}
+input[type=text],input[type=password],input[type=number],select,textarea{width:100%;background:var(--ink);color:var(--tx);border:1px solid var(--ln);border-radius:8px;padding:8px 10px;font:inherit}
+textarea{min-height:90px;font:12px/1.4 ui-monospace,Consolas,monospace;resize:vertical}
+input[type=color]{width:44px;height:30px;border:1px solid var(--ln);border-radius:8px;background:none;padding:2px}
+input[type=checkbox]{width:18px;height:18px;accent-color:var(--ac)}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.presets{display:flex;gap:8px;padding:0 18px 14px;flex-wrap:wrap}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--ln);background:var(--ink);color:var(--tx);padding:7px 12px}
+button:hover{border-color:var(--mu)}
+button.pri{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:800;padding:10px 20px}
+#main{display:grid;grid-template-rows:auto 1fr auto;min-width:0;height:100vh}
+.bar{display:flex;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--ln);flex-wrap:wrap}
+.bar .sp{flex:1}
+.bar span{color:var(--mu);font-size:13px}
+#stage{position:relative;margin:16px;border-radius:12px;overflow:hidden;border:1px solid var(--ln);min-height:240px}
+#stage[data-bg=checker]{background:conic-gradient(#3a4356 25%,#2b3342 0 50%,#3a4356 0 75%,#2b3342 0) 0 0/24px 24px}
+#stage[data-bg=dark]{background:#0b0d12}
+#stage[data-bg=light]{background:#f2f4f8}
+#stage[data-bg=game]{background:linear-gradient(135deg,#1e3a5f,#6b2f6b 55%,#e07a3f)}
+#stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent}
+.out{padding:14px 16px;border-top:1px solid var(--ln);display:grid;gap:8px;background:var(--pan)}
+.urlrow{display:flex;gap:10px}
+.urlrow input{font:12px ui-monospace,Consolas,monospace;flex:1}
+.hint{color:var(--mu);font-size:12.5px;margin:0}
+.hint b{color:var(--tx)}
+.warn{color:#ffb347}
+@media(max-width:860px){#app{grid-template-columns:1fr;height:auto}#main{height:auto}#stage{height:420px}#side{border-right:0}}
+
+/* ---------- Overlay ---------- */
+#chat{position:fixed;top:0;bottom:0;width:var(--w);display:flex;gap:var(--gap);padding:10px;overflow:hidden;font-family:var(--ff),system-ui,sans-serif;font-size:var(--fs);color:var(--tc);line-height:1.35;--rc:rgba(255,255,255,.6)}
+#chat.d-up{flex-direction:column;justify-content:flex-end}
+#chat.d-down{flex-direction:column-reverse;justify-content:flex-end}
+#chat.a-left{left:0}
+#chat.a-right{right:0}
+#chat .m{display:flex;gap:.5em;align-items:flex-start;flex:none;max-width:100%}
+#chat.a-right .m{flex-direction:row-reverse;align-self:flex-end;text-align:right}
+#chat .av{width:1.9em;height:1.9em;border-radius:50%;flex:none;background:#fff3}
+#chat.noav .av{display:none}
+#chat .b{min-width:0;overflow-wrap:anywhere}
+#chat .n{font-weight:700;margin-right:.4em}
+#chat .t{display:none;opacity:.6;font-size:.75em;margin-right:.4em}
+#chat.ts .t{display:inline}
+#chat.nobd .bd{display:none}
+#chat .bd{margin-right:.25em}
+#chat .owner{--rc:#ffd600}#chat .mod{--rc:#5e84f1}#chat .mem{--rc:#4ade80}
+#chat.s-bubble .b{background:var(--bg);border-radius:var(--r);padding:.4em .75em}
+#chat.s-bubble .owner .b,#chat.s-bubble .mod .b,#chat.s-bubble .mem .b{box-shadow:inset 0 0 0 2px var(--rc)}
+#chat.s-line .b{background:var(--bg);border-left:4px solid var(--rc);border-radius:0 var(--r) var(--r) 0;padding:.35em .7em}
+#chat.sh .n,#chat.sh .x,#chat.sh .amt{text-shadow:0 0 3px #000,0 1px 2px #000,0 0 6px #0009}
+#chat .sc .b{background:var(--sc);color:#111;border-radius:var(--r);padding:.45em .8em;box-shadow:none;border-left:0;text-shadow:none}
+#chat .sc .n,#chat .sc .x,#chat .sc .amt{color:#111!important;text-shadow:none}
+#chat .amt{font-weight:800;display:block}
+#chat .m.out{opacity:0;transition:opacity .5s}
+@keyframes sl{from{opacity:0;transform:translateY(16px)}}
+@keyframes fd{from{opacity:0}}
+@keyframes pp{from{opacity:0;transform:scale(.7)}}
+#chat.an-slide .m{animation:sl .35s ease-out}
+#chat.an-fade .m{animation:fd .5s}
+#chat.an-pop .m{animation:pp .3s cubic-bezier(.3,1.5,.5,1)}
+#st{position:fixed;top:6px;left:6px;background:#c62d42;color:#fff;font:12px system-ui;padding:4px 10px;border-radius:99px;display:none}
+@media(prefers-reduced-motion:reduce){#chat .m{animation:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <h1>Chat Overlay</h1>
+    <p class="sub">Tùy chỉnh khung chat YouTube Live, rồi sao chép URL dán vào OBS.</p>
+    <div class="presets" id="presets"></div>
+    <div id="form"></div>
+    <details><summary>Nạp lại URL / token cũ</summary>
+      <div class="f"><div class="r"><label>Dán URL overlay hoặc token</label><input type="text" id="imp"></div>
+      <div><button id="impBtn">Nạp cấu hình</button> <button id="reset">Đặt lại mặc định</button></div></div>
+    </details>
+  </aside>
+  <main id="main">
+    <div class="bar">
+      <span>Nền xem thử</span>
+      <button data-bg="checker">Trong suốt</button><button data-bg="dark">Tối</button><button data-bg="light">Sáng</button><button data-bg="game">Màu game</button>
+      <i class="sp"></i>
+      <button id="test">Gửi tin thử</button><button id="sc">Thử Super Chat</button><button id="clr">Xóa chat</button>
+    </div>
+    <div id="stage" data-bg="checker"><iframe id="pv" title="Xem thử overlay"></iframe></div>
+    <div class="out">
+      <div class="urlrow"><input type="text" id="url" readonly aria-label="URL overlay"><button class="pri" id="copy">Sao chép URL</button></div>
+      <p class="hint" id="info"></p>
+      <p class="hint">OBS: Sources → <b>Browser</b> → dán URL vào ô URL → đặt Width/Height bằng khung canvas (vd. 600×900). Nền trong suốt tự động, không cần chroma key.</p>
+    </div>
+  </main>
+</div>
+<div id="chat"></div><div id="st"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const D={v:'',k:'',demo:0,poll:8,dir:'up',al:'left',w:420,max:12,gap:6,st:'bubble',an:'slide',life:0,
+ff:'Be Vietnam Pro',fs:20,tc:'#ffffff',nm:'role',nc:'#ffd54a',bg:'#000000',bo:55,r:14,av:1,bd:1,ts:0,sh:1,sc:1,hc:1,bu:'',bw:'',cc:''};
+const enc=c=>{const d={};for(const k in D)if(c[k]!==D[k])d[k]=c[k];return btoa(unescape(encodeURIComponent(JSON.stringify(d)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')};
+const dec=t=>{try{t=t.replace(/-/g,'+').replace(/_/g,'/');return{...D,...JSON.parse(decodeURIComponent(escape(atob(t))))}}catch(e){return null}};
+const base=location.href.split(/[?#]/)[0];
+const P=new URLSearchParams(location.search);
+
+/* ================= OVERLAY ================= */
+function overlay(init,preview){
+  document.body.classList.add('ov');
+  const chat=$('#chat'),st=$('#st'),cust=document.createElement('style');
+  document.head.append(cust);
+  let c=init;
+  const h=(t,cl,tx)=>{const x=document.createElement(t);if(cl)x.className=cl;if(tx!=null)x.textContent=tx;return x};
+  const rgba=(hex,a)=>{const n=parseInt(hex.slice(1),16);return `rgba(${n>>16},${n>>8&255},${n&255},${a/100})`};
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const err=m=>{st.textContent=m;st.style.display='block';clearTimeout(err.t);err.t=setTimeout(()=>st.style.display='none',9000)};
+  function apply(n){
+    c=n;const s=chat.style;
+    s.setProperty('--w',c.w+'px');s.setProperty('--fs',c.fs+'px');s.setProperty('--gap',c.gap+'px');
+    s.setProperty('--tc',c.tc);s.setProperty('--bg',rgba(c.bg,c.bo));s.setProperty('--r',c.r+'px');
+    s.setProperty('--ff',`'${c.ff}'`);
+    chat.className=`d-${c.dir} a-${c.al} s-${c.st} an-${c.an}`+(c.av?'':' noav')+(c.bd?'':' nobd')+(c.ts?' ts':'')+(c.sh?' sh':'');
+    cust.textContent=c.cc;
+    while(chat.children.length>c.max)chat.firstChild.remove();
+  }
+  const tierColor=t=>['#1e88e5','#1e88e5','#00e5ff','#1de9b6','#ffca28','#f57c00','#e91e63','#e62117','#e62117','#e62117','#e62117','#e62117'][t]||'#1e88e5';
+  const hue=s=>{let x=0;for(const ch of s)x=(x*31+ch.charCodeAt(0))%360;return `hsl(${x} 75% 72%)`};
+  const roleColor={owner:'#ffd600',mod:'#8fb0ff',mem:'#6ee79a'};
+  const csv=s=>s.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+  function add(m){
+    const txt=m.t||'';
+    if(c.hc&&txt.startsWith('!'))return;
+    if(csv(c.bu).includes(m.n.toLowerCase()))return;
+    const low=txt.toLowerCase();
+    if(csv(c.bw).some(w=>low.includes(w)))return;
+    const sc=c.sc&&m.sc;
+    const e=h('div','m'+(m.role?' '+m.role:'')+(sc?' sc':''));
+    if(sc)e.style.setProperty('--sc',tierColor(m.tier));
+    const av=h('img','av');av.alt='';av.referrerPolicy='no-referrer';if(m.img)av.src=m.img;
+    const b=h('div','b');
+    if(sc)b.append(h('span','amt','💬 '+m.sc));
+    const badge=(m.role==='owner'?'👑':m.role==='mod'?'🔧':m.role==='mem'?'⭐':'')+(m.ver?'✔':'');
+    if(badge)b.append(h('span','bd',badge));
+    const n=h('span','n',m.n);
+    n.style.color=c.nm==='role'?(roleColor[m.role]||c.nc):c.nm==='user'?hue(m.n):c.nc;
+    const tm=m.time||new Date();
+    b.append(n,h('span','t',tm.toTimeString().slice(0,5)),h('span','x',txt));
+    e.append(av,b);chat.append(e);
+    while(chat.children.length>c.max)chat.firstChild.remove();
+    if(c.life>0)setTimeout(()=>{e.classList.add('out');setTimeout(()=>e.remove(),520)},c.life*1000);
+  }
+  /* demo */
+  const names=[['Minh Anh',''],['Tuấn Kiệt','mod'],['Bé Na','mem'],['Hoàng Long',''],['Thu Hà','mem'],['Streamer','owner'],['Gia Bảo',''],['Lan Chi','']];
+  const lines=['Hello cả nhà ơi 👋','Stream hôm nay hay quá!','Âm thanh ổn không mọi người?','Cho mình xin tên bài nhạc với','Haha đoạn đó cười xỉu','Lag chút nhưng vẫn mượt','Xin chào từ Sài Gòn nè','GG GG quá đỉnh','Mai có stream nữa không ạ?','Spam tim cho streamer nào ❤️'];
+  const pick=a=>a[Math.random()*a.length|0];
+  function demoMsg(sc){const [n,role]=pick(names);const o={n,role,t:pick(lines),time:new Date(),ver:Math.random()<.08};
+    if(sc){o.sc=pick(['50.000 ₫','100.000 ₫','200.000 ₫','$5.00']);o.tier=pick([2,3,4,5,6]);o.t='Cảm ơn streamer đã mang lại tiếng cười!'}return o}
+  async function demoLoop(){for(;;){add(demoMsg(Math.random()<.1));await sleep(1200+Math.random()*2200)}}
+  /* live */
+  const api='https://www.googleapis.com/youtube/v3/';
+  const vid=s=>{const m=s.match(/(?:v=|youtu\.be\/|\/live\/|\/embed\/)([\w-]{11})/);return m?m[1]:s.trim()};
+  async function jget(u){const j=await fetch(u).then(r=>r.json());if(j.error)throw new Error(j.error.message);return j}
+  async function live(){
+    if(!c.k||!c.v){err('Thiếu API key hoặc link video');return}
+    let id;
+    for(;;){try{
+      const j=await jget(`${api}videos?part=liveStreamingDetails&id=${vid(c.v)}&key=${c.k}`);
+      id=j.items?.[0]?.liveStreamingDetails?.activeLiveChatId;
+      if(id)break;err('Chưa tìm thấy live chat, đang thử lại…');
+    }catch(e){err(e.message)}await sleep(15000)}
+    let tok='',first=true;
+    for(;;){let wait=c.poll*1000;
+      try{
+        const j=await jget(`${api}liveChat/messages?liveChatId=${id}&part=snippet,authorDetails&maxResults=200&key=${c.k}`+(tok?`&pageToken=${tok}`:''));
+        tok=j.nextPageToken;
+        if(!first)for(const i of j.items){
+          const s=i.snippet,a=i.authorDetails,d=s.superChatDetails;
+          if(s.type!=='textMessageEvent'&&s.type!=='superChatEvent')continue;
+          add({n:a.displayName,img:a.profileImageUrl,ver:a.isVerified,t:s.displayMessage||'',time:new Date(s.publishedAt),
+            role:a.isChatOwner?'owner':a.isChatModerator?'mod':a.isChatSponsor?'mem':'',sc:d?d.amountDisplayString:'',tier:d?d.tier:0});
+        }
+        first=false;wait=Math.max(wait,j.pollingIntervalMillis||0);
+      }catch(e){err(e.message);wait=20000}
+      await sleep(wait)}
+  }
+  apply(c);
+  if(preview){
+    addEventListener('message',e=>{if(e.origin!==location.origin)return;const d=e.data||{};
+      if(d.cfg)apply(d.cfg);if(d.test)add(demoMsg(d.sc));if(d.clear)chat.textContent=''});
+    parent.postMessage({ready:1},location.origin);
+    demoLoop();
+  }else if(c.demo)demoLoop();else live();
+}
+
+/* ================= EDITOR ================= */
+function editor(){
+  const LS='yt-chat-overlay-cfg';
+  let cfg;try{cfg={...D,...JSON.parse(localStorage.getItem(LS)||'{}')}}catch(e){cfg={...D}}
+  const fonts=['Be Vietnam Pro','Roboto','Nunito','Montserrat','Oswald','Baloo 2'].map(f=>[f,f]);
+  const S=[
+  ['Nguồn chat',[
+    ['v','Link hoặc ID video đang live','text'],
+    ['k','YouTube Data API key','password'],
+    ['poll','Chu kỳ lấy tin (giây)','num',[5,60,1]],
+    ['demo','Chạy demo (không gọi API)','check']]],
+  ['Bố cục',[
+    ['dir','Tin mới xuất hiện ở','sel',[['up','Dưới cùng (như YouTube)'],['down','Trên cùng']]],
+    ['al','Vị trí khung','sel',[['left','Sát trái'],['right','Sát phải']]],
+    ['w','Chiều rộng khung (px)','num',[200,1400,10]],
+    ['max','Số tin tối đa','num',[1,50,1]],
+    ['gap','Khoảng cách giữa tin (px)','num',[0,40,1]],
+    ['st','Kiểu tin nhắn','sel',[['bubble','Bong bóng'],['line','Vạch màu bên trái'],['plain','Chữ trơn']]],
+    ['an','Hiệu ứng khi vào','sel',[['slide','Trượt lên'],['fade','Mờ dần'],['pop','Bật ra'],['none','Không']]],
+    ['life','Tự ẩn sau (giây, 0 = giữ mãi)','num',[0,300,1]]]],
+  ['Chữ & màu tên',[
+    ['ff','Phông chữ','sel',fonts],
+    ['fs','Cỡ chữ (px)','num',[10,72,1]],
+    ['tc','Màu chữ','color'],
+    ['nm','Cách tô màu tên','sel',[['role','Theo vai trò (chủ kênh, mod, hội viên)'],['user','Mỗi người một màu'],['fixed','Một màu cố định']]],
+    ['nc','Màu tên mặc định','color']]],
+  ['Khung tin',[
+    ['bg','Màu nền khung','color'],
+    ['bo','Độ đục nền (%)','num',[0,100,5]],
+    ['r','Bo góc (px)','num',[0,40,1]],
+    ['sh','Đổ bóng chữ cho dễ đọc','check'],
+    ['av','Hiện ảnh đại diện','check'],
+    ['bd','Hiện huy hiệu','check'],
+    ['ts','Hiện giờ gửi','check'],
+    ['sc','Làm nổi bật Super Chat','check']]],
+  ['Bộ lọc',[
+    ['hc','Ẩn lệnh bắt đầu bằng “!”','check'],
+    ['bu','Chặn người dùng (cách nhau bằng dấu phẩy)','text'],
+    ['bw','Chặn từ khóa (cách nhau bằng dấu phẩy)','text']]],
+  ['CSS tùy chỉnh',[['cc','Ví dụ: #chat .n{letter-spacing:.5px}','area']]]];
+  const inputs={};
+  S.forEach(([t,fs],i)=>{
+    const d=document.createElement('details');d.open=i<2;
+    d.innerHTML=`<summary>${t}</summary><div class="f"></div>`;
+    fs.forEach(([k,l,ty,o])=>{
+      const r=document.createElement('div');r.className='r'+(ty==='check'||ty==='color'?' c':'');
+      const id='f_'+k;let inp;
+      if(ty==='sel'){inp=document.createElement('select');o.forEach(([v,n])=>inp.add(new Option(n,v)))}
+      else if(ty==='area'){inp=document.createElement('textarea');inp.placeholder=l;inp.spellcheck=false}
+      else{inp=document.createElement('input');inp.type=ty==='num'?'number':ty==='check'?'checkbox':ty;
+        if(ty==='num'){[inp.min,inp.max,inp.step]=o}if(ty==='text')inp.autocomplete='off'}
+      inp.id=id;inp.addEventListener('input',update);inputs[k]=inp;
+      const lb=document.createElement('label');lb.htmlFor=id;lb.textContent=ty==='area'?'Chèn CSS riêng cho #chat, .m, .n, .x, .b':l;
+      r.append(lb,inp);d.lastChild.append(r);
+    });
+    $('#form').append(d);
+  });
+  const read=()=>{const c={...D};for(const k in inputs){const i=inputs[k];c[k]=i.type==='checkbox'?+i.checked:i.type==='number'?(+i.value||0):i.value}return c};
+  const write=c=>{for(const k in inputs){const i=inputs[k];i.type==='checkbox'?i.checked=!!c[k]:i.value=c[k]}};
+  const pre={
+    'Mặc định':{},
+    'Tối giản':{st:'plain',bo:0,sh:1,av:0,bd:0,an:'fade',nm:'user'},
+    'Kính mờ':{st:'bubble',bg:'#ffffff',bo:18,r:20,sh:1,an:'pop'},
+    'Vạch màu':{st:'line',bg:'#101820',bo:70,r:6,an:'slide',ts:1},
+    'Chữ to':{fs:30,w:620,max:7,st:'bubble',bo:70,r:22,ff:'Baloo 2',an:'pop'}};
+  for(const n in pre){const b=document.createElement('button');b.textContent=n;
+    b.onclick=()=>{const keep={v:cfg.v,k:cfg.k,demo:cfg.demo,poll:cfg.poll};cfg={...D,...keep,...pre[n]};write(cfg);update()};$('#presets').append(b)}
+  const pv=$('#pv');let ready=false;
+  const send=m=>pv.contentWindow&&pv.contentWindow.postMessage(m,location.origin);
+  addEventListener('message',e=>{if(e.origin===location.origin&&e.data&&e.data.ready){ready=true;send({cfg})}});
+  function update(){
+    cfg=read();try{localStorage.setItem(LS,JSON.stringify(cfg))}catch(e){}
+    const tok=enc(cfg),url=`${base}?o=${tok}`;
+    $('#url').value=url;
+    let info=`URL dài <b>${url.length}</b> ký tự.`;
+    if(!cfg.demo){
+      if(!cfg.k||!cfg.v)info+=` <span class="warn">Chưa nhập API key hoặc link video, OBS sẽ báo lỗi.</span>`;
+      else info+=` Ước tính ~<b>${Math.round(3600/Math.max(cfg.poll,5)*5)}</b> đơn vị quota/giờ (hạn mức mặc định 10.000/ngày).`;
+    }else info+=' Đang bật chế độ demo.';
+    $('#info').innerHTML=info;
+    if(ready)send({cfg});
+  }
+  $('#copy').onclick=async()=>{
+    const u=$('#url');try{await navigator.clipboard.writeText(u.value)}catch(e){u.select();document.execCommand('copy')}
+    $('#copy').textContent='Đã sao chép URL';setTimeout(()=>$('#copy').textContent='Sao chép URL',1600)};
+  $('#url').onfocus=e=>e.target.select();
+  document.querySelectorAll('[data-bg]').forEach(b=>b.onclick=()=>$('#stage').dataset.bg=b.dataset.bg);
+  $('#test').onclick=()=>send({test:1});$('#sc').onclick=()=>send({test:1,sc:1});$('#clr').onclick=()=>send({clear:1});
+  $('#impBtn').onclick=()=>{const v=$('#imp').value.trim(),m=v.match(/[?&]o=([^&#\s]+)/),n=dec(m?m[1]:v);
+    if(n){cfg=n;write(cfg);update();$('#imp').value=''}else $('#imp').style.borderColor='var(--ac)'};
+  $('#reset').onclick=()=>{cfg={...D};write(cfg);update()};
+  write(cfg);update();
+  pv.src=`${base}?o=${enc(cfg)}&p=1`;
+}
+
+/* ================= BOOT ================= */
+if(P.has('o'))overlay(dec(P.get('o'))||{...D},P.has('p'));else editor();
+</script>
+</body>
+</html>
